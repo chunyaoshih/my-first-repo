@@ -122,7 +122,10 @@
             ${progressHtml}
             <div class="resume-info">繼續從 ${formatTime(resumePos)}</div>
           </div>
-          <button class="delete-btn" onclick="event.stopPropagation(); deleteVideo('${v.id}', ${JSON.stringify(escapeHtml(v.title))})" title="刪除">✕</button>
+          <button class="delete-btn"
+                  onclick="event.stopPropagation(); deleteVideo('${v.id}', ${JSON.stringify(escapeHtml(v.title))})"
+                  ontouchend="event.stopPropagation(); event.preventDefault(); deleteVideo('${v.id}', ${JSON.stringify(escapeHtml(v.title))})"
+                  title="刪除">✕</button>
         </div>`;
     }).join('');
   }

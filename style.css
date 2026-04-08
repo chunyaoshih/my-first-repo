@@ -138,6 +138,10 @@ header h1 {
 .video-card:hover .delete-btn { opacity: 1; }
 .delete-btn:hover { background: rgba(239,83,80,0.15); color: var(--danger); }
 
+@media (hover: none) {
+  .delete-btn { opacity: 1; }
+}
+
 .thumbnail {
   width: 130px;
   height: 73px;
