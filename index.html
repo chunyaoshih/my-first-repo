@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube 播放追蹤</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <h1>播放清單</h1>
+  <div class="header-actions">
+    <div class="platform-toggle">
+      <button id="btn-android" class="platform-btn" onclick="setPlatform('android')">Android</button>
+      <button id="btn-mac"     class="platform-btn" onclick="setPlatform('mac')">Mac</button>
+    </div>
+    <button class="icon-btn" onclick="showAddModal()" title="新增影片">＋</button>
+    <button class="icon-btn" onclick="showSettingsModal()" title="設定">⚙</button>
+  </div>
+</header>
+
+<div id="video-list">
+  <div class="loading">載入中...</div>
+</div>
+
+<!-- ── 新增影片 Modal ── -->
+<div id="add-modal" class="modal hidden">
+  <div class="modal-content">
+    <h2>新增影片</h2>
+    <label>YouTube 連結</label>
+    <input type="url" id="video-url" placeholder="https://youtube.com/watch?v=..."
+           oninput="onUrlInput(this.value)" autocomplete="off" autocorrect="off">
+    <label>影片標題</label>
+    <input type="text" id="video-title" placeholder="貼上連結後自動取得，或手動輸入">
+    <div id="add-status"></div>
+    <div class="modal-actions">
+      <button onclick="hideAddModal()">取消</button>
+      <button class="primary" onclick="submitAddVideo()">新增</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 設定 Modal ── -->
+<div id="settings-modal" class="modal hidden">
+  <div class="modal-content">
+    <h2>設定</h2>
+    <label>GitHub Personal Access Token</label>
+    <input type="password" id="pat-input" placeholder="ghp_xxxxxxxxxxxx" autocomplete="off">
+    <small>需要 Contents 讀寫權限，儲存於本機不會上傳</small>
+    <label>Repository Owner</label>
+    <input type="text" id="owner-input" autocomplete="off">
+    <label>Repository Name</label>
+    <input type="text" id="repo-input" autocomplete="off">
+    <div id="settings-status"></div>
+    <div class="modal-actions">
+      <button onclick="hideSettingsModal()">取消</button>
+      <button class="primary" onclick="submitSettings()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<div id="overlay" class="hidden" onclick="closeAllModals()"></div>
+
+<script src="app.js"></script>
+<script>
+  let playlistData = null;
+  let titleFetchTimer = null;
+
+  // ── 初始化 ────────────────────────────────────────────
+  async function init() {
+    const config = getConfig();
+    updatePlatformButtons(config.platform);
+    if (!config.pat) {
+      document.getElementById('video-list').innerHTML =
+        '<div class="empty">請先點擊 ⚙ 設定 GitHub PAT</div>';
+      showSettingsModal();
+      return;
+    }
+    await loadPlaylist();
+  }
+
+  async function loadPlaylist() {
+    const listEl = document.getElementById('video-list');
+    listEl.innerHTML = '<div class="loading">載入中...</div>';
+    try {
+      const result = await githubRead();
+      playlistData = result.data;
+      renderPlaylist(playlistData.videos || []);
+    } catch (e) {
+      listEl.innerHTML = `<div class="error">載入失敗：${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  // ── 清單渲染 ──────────────────────────────────────────
+  function renderPlaylist(videos) {
+    const listEl = document.getElementById('video-list');
+    if (!videos.length) {
+      listEl.innerHTML = '<div class="empty">還沒有影片，點擊 ＋ 新增</div>';
+      return;
+    }
+    listEl.innerHTML = videos.map(v => {
+      const resumePos = getResumePosition(v);
+      const aPos = v.platforms?.android;
+      const mPos = v.platforms?.mac;
+      const progressHtml = v.duration
+        ? `<div class="progress-bar">
+             <div class="progress-fill" style="width:${Math.min(100, resumePos / v.duration * 100).toFixed(1)}%"></div>
+           </div>`
+        : '';
+      return `
+        <div class="video-card" onclick="location.href='player.html?id=${v.id}'">
+          <img class="thumbnail"
+               src="https://img.youtube.com/vi/${v.id}/mqdefault.jpg"
+               alt="${escapeHtml(v.title)}" loading="lazy">
+          <div class="video-info">
+            <div class="video-title">${escapeHtml(v.title)}</div>
+            <div class="platforms-info">
+              <span class="platform-badge android">Android: ${aPos ? formatTime(aPos.last_position) : '未播放'}</span>
+              <span class="platform-badge mac">Mac: ${mPos ? formatTime(mPos.last_position) : '未播放'}</span>
+            </div>
+            ${progressHtml}
+            <div class="resume-info">繼續從 ${formatTime(resumePos)}</div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  // ── 平台切換 ──────────────────────────────────────────
+  function setPlatform(p) {
+    const config = getConfig();
+    config.platform = p;
+    saveConfig(config);
+    updatePlatformButtons(p);
+  }
+
+  function updatePlatformButtons(p) {
+    document.getElementById('btn-android').classList.toggle('active', p === 'android');
+    document.getElementById('btn-mac').classList.toggle('active', p === 'mac');
+  }
+
+  // ── 新增影片 Modal ────────────────────────────────────
+  function showAddModal() {
+    document.getElementById('video-url').value = '';
+    document.getElementById('video-title').value = '';
+    document.getElementById('add-status').textContent = '';
+    showModal('add-modal');
+    setTimeout(() => document.getElementById('video-url').focus(), 80);
+  }
+  function hideAddModal() { hideModal('add-modal'); }
+
+  function onUrlInput(value) {
+    clearTimeout(titleFetchTimer);
+    const videoId = extractVideoId(value.trim());
+    if (!videoId) return;
+    const titleEl = document.getElementById('video-title');
+    if (titleEl.value) return; // 不覆蓋手動輸入的標題
+    document.getElementById('add-status').textContent = '取得標題中...';
+    titleFetchTimer = setTimeout(async () => {
+      const title = await fetchVideoTitle(videoId);
+      if (!document.getElementById('video-title').value) {
+        if (title) {
+          document.getElementById('video-title').value = title;
+          document.getElementById('add-status').textContent = '';
+        } else {
+          document.getElementById('add-status').textContent = '無法自動取得標題，請手動輸入';
+        }
+      }
+    }, 700);
+  }
+
+  async function submitAddVideo() {
+    const url    = document.getElementById('video-url').value.trim();
+    const title  = document.getElementById('video-title').value.trim();
+    const status = document.getElementById('add-status');
+
+    const videoId = extractVideoId(url);
+    if (!videoId)  { status.textContent = '無效的 YouTube 連結'; return; }
+    if (!title)    { status.textContent = '請輸入影片標題'; document.getElementById('video-title').focus(); return; }
+    if (playlistData?.videos?.some(v => v.id === videoId)) {
+      status.textContent = '這部影片已在清單中'; return;
+    }
+
+    status.textContent = '儲存中...';
+    try {
+      const updated = await updatePlaylistData(data => {
+        if (!data.videos) data.videos = [];
+        data.videos.push({
+          id: videoId,
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          title,
+          added_at: new Date().toISOString(),
+          platforms: {},
+          history: [],
+          annotations: []
+        });
+        return data;
+      });
+      playlistData = updated;
+      hideAddModal();
+      renderPlaylist(playlistData.videos || []);
+    } catch (e) {
+      status.textContent = `儲存失敗：${e.message}`;
+    }
+  }
+
+  // ── 設定 Modal ────────────────────────────────────────
+  function showSettingsModal() {
+    const c = getConfig();
+    document.getElementById('pat-input').value   = c.pat   || '';
+    document.getElementById('owner-input').value = c.owner || 'chunyaoshih';
+    document.getElementById('repo-input').value  = c.repo  || 'my-first-repo';
+    document.getElementById('settings-status').textContent = '';
+    showModal('settings-modal');
+    setTimeout(() => document.getElementById('pat-input').focus(), 80);
+  }
+  function hideSettingsModal() { hideModal('settings-modal'); }
+
+  function submitSettings() {
+    const c   = getConfig();
+    c.pat   = document.getElementById('pat-input').value.trim();
+    c.owner = document.getElementById('owner-input').value.trim() || 'chunyaoshih';
+    c.repo  = document.getElementById('repo-input').value.trim()  || 'my-first-repo';
+    saveConfig(c);
+    hideSettingsModal();
+    loadPlaylist();
+  }
+
+  // ── Modal helpers ─────────────────────────────────────
+  function showModal(id) {
+    document.getElementById(id).classList.remove('hidden');
+    document.getElementById('overlay').classList.remove('hidden');
+  }
+  function hideModal(id) {
+    document.getElementById(id).classList.add('hidden');
+    // 只有沒其他 modal 開著時才隱藏 overlay
+    const others = ['add-modal','settings-modal'].filter(i => i !== id);
+    if (others.every(i => document.getElementById(i).classList.contains('hidden'))) {
+      document.getElementById('overlay').classList.add('hidden');
+    }
+  }
+  function closeAllModals() { hideAddModal(); hideSettingsModal(); }
+
+  // ── 啟動 ──────────────────────────────────────────────
+  init();
+</script>
+</body>
+</html>
