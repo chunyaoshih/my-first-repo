@@ -46,7 +46,12 @@ async function githubWrite(content, sha, msg = 'Update playlist') {
   const { pat, owner, repo } = getConfig();
   const body = {
     message: msg,
-    content: btoa(unescape(encodeURIComponent(JSON.stringify(content, null, 2))))
+    content: (() => {
+      const bytes = new TextEncoder().encode(JSON.stringify(content, null, 2));
+      let bin = '';
+      bytes.forEach(b => { bin += String.fromCharCode(b); });
+      return btoa(bin);
+    })()
   };
   if (sha) body.sha = sha;
   const resp = await fetch(
@@ -102,7 +107,7 @@ function extractVideoId(url) {
 async function fetchVideoTitle(videoId) {
   try {
     const r = await fetch(
-      `https://noembed.com/embed?url=https://www.youtube.com/watch?v=${videoId}`
+      `https://noembed.com/embed?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}`
     );
     if (r.ok) {
       const d = await r.json();
