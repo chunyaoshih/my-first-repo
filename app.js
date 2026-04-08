@@ -35,8 +35,9 @@ async function githubRead() {
     throw new Error(e.message || `GitHub 讀取失敗 (${resp.status})`);
   }
   const file = await resp.json();
+  const bytes = Uint8Array.from(atob(file.content.replace(/\s/g, '')), c => c.charCodeAt(0));
   return {
-    data: JSON.parse(atob(file.content.replace(/\s/g, ''))),
+    data: JSON.parse(new TextDecoder('utf-8').decode(bytes)),
     sha: file.sha
   };
 }
