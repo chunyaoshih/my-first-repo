@@ -89,6 +89,34 @@ async function updatePlaylistData(fn) {
 
 // ── YouTube 工具 ─────────────────────────────────────────
 
+function extractPlaylistId(url) {
+  if (!url) return null;
+  const m = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
+
+async function fetchPlaylistVideos(playlistId) {
+  const { ytApiKey } = getConfig();
+  if (!ytApiKey) throw new Error('請先在設定中輸入 YouTube Data API Key');
+  const videos = [];
+  let pageToken = '';
+  do {
+    const url = `https://www.googleapis.com/youtube/v3/playlistItems?playlistId=${encodeURIComponent(playlistId)}&key=${encodeURIComponent(ytApiKey)}&maxResults=50&part=snippet${pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''}`;
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error?.message || `YouTube API 錯誤 (${resp.status})`);
+    for (const item of (data.items || [])) {
+      const videoId = item.snippet?.resourceId?.videoId;
+      const title   = item.snippet?.title;
+      if (videoId && title && title !== 'Deleted video' && title !== 'Private video') {
+        videos.push({ id: videoId, title });
+      }
+    }
+    pageToken = data.nextPageToken || '';
+  } while (pageToken);
+  return videos;
+}
+
 function extractVideoId(url) {
   if (!url) return null;
   for (const re of [

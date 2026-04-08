@@ -27,16 +27,19 @@
 <!-- ── 新增影片 Modal ── -->
 <div id="add-modal" class="modal hidden">
   <div class="modal-content">
-    <h2>新增影片</h2>
-    <label>YouTube 連結</label>
-    <input type="url" id="video-url" placeholder="https://youtube.com/watch?v=..."
+    <h2 id="add-modal-title">新增影片</h2>
+    <label>YouTube 連結或播放清單網址</label>
+    <input type="url" id="video-url" placeholder="https://youtube.com/watch?v=... 或 /playlist?list=..."
            oninput="onUrlInput(this.value)" autocomplete="off" autocorrect="off">
-    <label>影片標題</label>
+    <div id="playlist-hint" class="playlist-hint hidden">
+      📋 偵測到播放清單，將自動新增所有影片
+    </div>
+    <label id="title-label">影片標題</label>
     <input type="text" id="video-title" placeholder="貼上連結後自動取得，或手動輸入">
     <div id="add-status"></div>
     <div class="modal-actions">
       <button onclick="hideAddModal()">取消</button>
-      <button class="primary" onclick="submitAddVideo()">新增</button>
+      <button class="primary" id="add-submit-btn" onclick="submitAddVideo()">新增</button>
     </div>
   </div>
 </div>
@@ -52,6 +55,9 @@
     <input type="text" id="owner-input" autocomplete="off">
     <label>Repository Name</label>
     <input type="text" id="repo-input" autocomplete="off">
+    <label style="margin-top:12px">YouTube Data API Key（新增播放清單用）</label>
+    <input type="password" id="yt-api-key-input" placeholder="AIza..." autocomplete="off">
+    <small>至 Google Cloud Console 建立，選 YouTube Data API v3</small>
     <div id="settings-status"></div>
     <div class="modal-actions">
       <button onclick="hideSettingsModal()">取消</button>
@@ -170,6 +176,11 @@
     document.getElementById('video-url').value = '';
     document.getElementById('video-title').value = '';
     document.getElementById('add-status').textContent = '';
+    document.getElementById('add-modal-title').textContent = '新增影片';
+    document.getElementById('add-submit-btn').textContent = '新增';
+    document.getElementById('playlist-hint').classList.add('hidden');
+    document.getElementById('title-label').classList.remove('hidden');
+    document.getElementById('video-title').classList.remove('hidden');
     showModal('add-modal');
     setTimeout(() => document.getElementById('video-url').focus(), 80);
   }
@@ -177,10 +188,33 @@
 
   function onUrlInput(value) {
     clearTimeout(titleFetchTimer);
-    const videoId = extractVideoId(value.trim());
+    const url = value.trim();
+    const playlistId = extractPlaylistId(url);
+    const videoId    = extractVideoId(url);
+    const hintEl     = document.getElementById('playlist-hint');
+    const titleEl    = document.getElementById('video-title');
+    const titleLabel = document.getElementById('title-label');
+
+    if (playlistId) {
+      // 播放清單模式
+      hintEl.classList.remove('hidden');
+      titleLabel.classList.add('hidden');
+      titleEl.classList.add('hidden');
+      document.getElementById('add-modal-title').textContent = '新增播放清單';
+      document.getElementById('add-submit-btn').textContent = '新增所有影片';
+      document.getElementById('add-status').textContent = '';
+      return;
+    }
+
+    // 單一影片模式
+    hintEl.classList.add('hidden');
+    titleLabel.classList.remove('hidden');
+    titleEl.classList.remove('hidden');
+    document.getElementById('add-modal-title').textContent = '新增影片';
+    document.getElementById('add-submit-btn').textContent = '新增';
+
     if (!videoId) return;
-    const titleEl = document.getElementById('video-title');
-    if (titleEl.value) return; // 不覆蓋手動輸入的標題
+    if (titleEl.value) return;
     document.getElementById('add-status').textContent = '取得標題中...';
     titleFetchTimer = setTimeout(async () => {
       const title = await fetchVideoTitle(videoId);
@@ -197,8 +231,54 @@
 
   async function submitAddVideo() {
     const url    = document.getElementById('video-url').value.trim();
-    const title  = document.getElementById('video-title').value.trim();
     const status = document.getElementById('add-status');
+    const playlistId = extractPlaylistId(url);
+
+    // ── 播放清單模式 ──
+    if (playlistId) {
+      status.textContent = '抓取播放清單中...';
+      document.getElementById('add-submit-btn').disabled = true;
+      try {
+        const videos = await fetchPlaylistVideos(playlistId);
+        if (!videos.length) { status.textContent = '播放清單沒有可用的影片'; return; }
+        status.textContent = `新增 ${videos.length} 部影片中...`;
+        const updated = await updatePlaylistData(data => {
+          if (!data.videos) data.videos = [];
+          const existingIds = new Set(data.videos.map(v => v.id));
+          let added = 0;
+          for (const v of videos) {
+            if (!existingIds.has(v.id)) {
+              data.videos.push({
+                id: v.id,
+                url: `https://www.youtube.com/watch?v=${v.id}`,
+                title: v.title,
+                added_at: new Date().toISOString(),
+                platforms: {}, history: [], annotations: []
+              });
+              added++;
+            }
+          }
+          data._lastAddedCount = added;
+          return data;
+        });
+        const added = updated._lastAddedCount ?? videos.length;
+        playlistData = updated;
+        hideAddModal();
+        renderPlaylist(playlistData.videos || []);
+        // 短暫顯示結果
+        const skipped = videos.length - added;
+        const msg = `已新增 ${added} 部影片${skipped ? `（${skipped} 部已存在略過）` : ''}`;
+        showToast(msg);
+      } catch (e) {
+        status.textContent = `失敗：${e.message}`;
+      } finally {
+        document.getElementById('add-submit-btn').disabled = false;
+      }
+      return;
+    }
+
+    // ── 單一影片模式 ──
+    const title  = document.getElementById('video-title').value.trim();
 
     const videoId = extractVideoId(url);
     if (!videoId)  { status.textContent = '無效的 YouTube 連結'; return; }
@@ -307,9 +387,10 @@
   // ── 設定 Modal ────────────────────────────────────────
   function showSettingsModal() {
     const c = getConfig();
-    document.getElementById('pat-input').value   = c.pat   || '';
-    document.getElementById('owner-input').value = c.owner || 'chunyaoshih';
-    document.getElementById('repo-input').value  = c.repo  || 'my-first-repo';
+    document.getElementById('pat-input').value        = c.pat      || '';
+    document.getElementById('owner-input').value      = c.owner    || 'chunyaoshih';
+    document.getElementById('repo-input').value       = c.repo     || 'my-first-repo';
+    document.getElementById('yt-api-key-input').value = c.ytApiKey || '';
     document.getElementById('settings-status').textContent = '';
     showModal('settings-modal');
     setTimeout(() => document.getElementById('pat-input').focus(), 80);
@@ -317,13 +398,27 @@
   function hideSettingsModal() { hideModal('settings-modal'); }
 
   function submitSettings() {
-    const c   = getConfig();
-    c.pat   = document.getElementById('pat-input').value.trim();
-    c.owner = document.getElementById('owner-input').value.trim() || 'chunyaoshih';
-    c.repo  = document.getElementById('repo-input').value.trim()  || 'my-first-repo';
+    const c      = getConfig();
+    c.pat        = document.getElementById('pat-input').value.trim();
+    c.owner      = document.getElementById('owner-input').value.trim() || 'chunyaoshih';
+    c.repo       = document.getElementById('repo-input').value.trim()  || 'my-first-repo';
+    c.ytApiKey   = document.getElementById('yt-api-key-input').value.trim();
     saveConfig(c);
     hideSettingsModal();
     loadPlaylist();
+  }
+
+  function showToast(msg) {
+    let t = document.getElementById('toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'toast';
+      t.className = 'toast';
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
   }
 
   // ── Modal helpers ─────────────────────────────────────
