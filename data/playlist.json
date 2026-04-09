@@ -73,7 +73,14 @@
           "end": 387
         }
       ],
-      "annotations": [],
+      "annotations": [
+        {
+          "id": "mnqsgz195u9gq",
+          "timestamp": 380,
+          "note": "應許",
+          "created_at": "2026-04-09T01:19:05.565Z"
+        }
+      ],
       "duration": 9552
     }
   ],
