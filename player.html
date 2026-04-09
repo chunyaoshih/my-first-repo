@@ -353,7 +353,7 @@
         <button class="history-time-btn" onclick="seekTo(${h.start})">${formatTime(h.start)}</button>
         <span class="history-arrow">→</span>
         <button class="history-time-btn" onclick="seekTo(${h.end})">${formatTime(h.end)}</button>
-        <span class="history-date">${new Date(h.date).toLocaleDateString('zh-TW')}</span>
+        <span class="history-date">${new Date(h.date).toLocaleString('zh-TW', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
       </div>`).join('');
   }
 </script>
