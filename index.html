@@ -70,6 +70,7 @@
       <small>至 Google Cloud Console 建立 OAuth 2.0 Client ID（Web application），授權來源填此網站網址</small>
       <div style="margin-top:8px">
         <button type="button" onclick="connectGoogleDrive()">連結 Google Drive</button>
+        <button type="button" onclick="resetDriveCache()">重新搜尋 Drive 檔案</button>
         <span id="drive-connect-status"></span>
       </div>
       <small>檔案會儲存於你的 Drive → <b>yt-check/playlist.json</b></small>
@@ -442,6 +443,14 @@
     const backend = document.querySelector('input[name="backend"]:checked')?.value || 'github';
     document.getElementById('github-fields').classList.toggle('hidden', backend !== 'github');
     document.getElementById('drive-fields').classList.toggle('hidden', backend !== 'drive');
+  }
+
+  function resetDriveCache() {
+    const c = getConfig();
+    c.driveFileId = '';
+    c.driveFolderId = '';
+    saveConfig(c);
+    document.getElementById('drive-connect-status').textContent = ' ✓ 已清除快取，下次讀取會重新搜尋';
   }
 
   async function connectGoogleDrive() {

@@ -218,13 +218,15 @@ async function driveResolveFileId() {
 
 async function driveRead() {
   let fileId = await driveResolveFileId();
-  let r = await driveApi(`/drive/v3/files/${fileId}?alt=media`);
-  if (r.status === 404) {
-    // 快取的檔案被刪了，清掉快取重找
+  // 先檢查 metadata 看檔案還在不在（且沒被丟到垃圾桶）
+  let metaResp = await driveApi(`/drive/v3/files/${fileId}?fields=id,trashed`);
+  if (metaResp.status === 404 || (metaResp.ok && (await metaResp.clone().json()).trashed)) {
     saveConfig({ ...getConfig(), driveFileId: '', driveFolderId: '' });
     fileId = await driveResolveFileId();
-    r = await driveApi(`/drive/v3/files/${fileId}?alt=media`);
+    metaResp = await driveApi(`/drive/v3/files/${fileId}?fields=id,trashed`);
   }
+  if (!metaResp.ok) throw new Error(`Google Drive metadata 讀取失敗 (${metaResp.status})`);
+  const r = await driveApi(`/drive/v3/files/${fileId}?alt=media`);
   if (!r.ok) throw new Error(`Google Drive 讀取失敗 (${r.status})`);
   const text = await r.text();
   let data;
