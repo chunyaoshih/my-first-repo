@@ -349,7 +349,9 @@
       <div class="history-item">
         <span class="platform-dot ${h.platform}"></span>
         <span class="history-platform">${h.platform === 'android' ? 'Android' : 'Mac'}</span>
-        <span class="history-range">${formatTime(h.start)} → ${formatTime(h.end)}</span>
+        <button class="history-time-btn" onclick="seekTo(${h.start})">${formatTime(h.start)}</button>
+        <span class="history-arrow">→</span>
+        <button class="history-time-btn" onclick="seekTo(${h.end})">${formatTime(h.end)}</button>
         <span class="history-date">${new Date(h.date).toLocaleDateString('zh-TW')}</span>
       </div>`).join('');
   }

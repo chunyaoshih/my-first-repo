@@ -500,8 +500,21 @@ header h1 {
 .platform-dot.android { background: var(--android); }
 .platform-dot.mac     { background: var(--mac); }
 .history-platform { color: var(--text); font-size: 0.75rem; min-width: 52px; }
-.history-range { flex: 1; }
-.history-date { color: var(--text2); font-size: 0.7rem; white-space: nowrap; }
+.history-arrow { color: var(--text2); }
+.history-date { color: var(--text2); font-size: 0.7rem; white-space: nowrap; margin-left: auto; }
+
+.history-time-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--mac);
+  font-family: 'SF Mono', 'Consolas', monospace;
+  font-size: 0.78rem;
+  padding: 2px 7px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.history-time-btn:hover { background: rgba(74,158,255,0.15); }
 
 /* ── Annotation list ── */
 #annotations-list { display: flex; flex-direction: column; }
