@@ -9,6 +9,10 @@
         "android": {
           "last_position": 4374,
           "last_updated": "2026-04-09T02:53:17.638Z"
+        },
+        "mac": {
+          "last_position": 4377,
+          "last_updated": "2026-04-09T03:32:04.897Z"
         }
       },
       "history": [
@@ -689,6 +693,12 @@
           "platform": "android",
           "start": 4345,
           "end": 4371
+        },
+        {
+          "date": "2026-04-09T03:32:04.897Z",
+          "platform": "mac",
+          "start": 4374,
+          "end": 4377
         }
       ],
       "annotations": [
