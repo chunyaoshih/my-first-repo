@@ -84,12 +84,20 @@ let _gisTokenClient = null;
 let _driveAccessToken = null;
 let _driveTokenExpiry = 0;
 
-function initGisTokenClient() {
+async function waitForGis(timeoutMs = 8000) {
+  if (window.google?.accounts?.oauth2) return;
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (window.google?.accounts?.oauth2) return;
+    await new Promise(r => setTimeout(r, 100));
+  }
+  throw new Error('Google Identity Services 載入逾時，請檢查網路或重新整理頁面');
+}
+
+async function initGisTokenClient() {
   const { driveClientId } = getConfig();
   if (!driveClientId) throw new Error('請先設定 Google Drive Client ID');
-  if (!window.google?.accounts?.oauth2) {
-    throw new Error('Google Identity Services 尚未載入，請重新整理頁面');
-  }
+  await waitForGis();
   _gisTokenClient = google.accounts.oauth2.initTokenClient({
     client_id: driveClientId,
     scope: DRIVE_SCOPE,
@@ -103,7 +111,7 @@ async function ensureDriveToken(silent = true) {
   if (_driveAccessToken && Date.now() < _driveTokenExpiry - 60000) {
     return _driveAccessToken;
   }
-  if (!_gisTokenClient) initGisTokenClient();
+  if (!_gisTokenClient) await initGisTokenClient();
   return new Promise((resolve, reject) => {
     _gisTokenClient.callback = (resp) => {
       if (resp.error) {
