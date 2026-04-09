@@ -217,11 +217,24 @@ header h1 {
 .platform-badge.android { color: var(--android); }
 .platform-badge.mac     { color: var(--mac); }
 
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .progress-bar {
+  flex: 1;
   height: 3px;
   background: var(--border);
   border-radius: 2px;
   overflow: hidden;
+}
+.progress-pct {
+  font-size: 0.7rem;
+  color: var(--text2);
+  white-space: nowrap;
+  min-width: 3ch;
+  text-align: right;
 }
 .progress-fill {
   height: 100%;
