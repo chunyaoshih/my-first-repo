@@ -121,9 +121,13 @@
       const resumePos = getResumePosition(v);
       const aPos = v.platforms?.android;
       const mPos = v.platforms?.mac;
+      const pct = v.duration ? Math.min(100, resumePos / v.duration * 100) : 0;
       const progressHtml = v.duration
-        ? `<div class="progress-bar">
-             <div class="progress-fill" style="width:${Math.min(100, resumePos / v.duration * 100).toFixed(1)}%"></div>
+        ? `<div class="progress-row">
+             <div class="progress-bar">
+               <div class="progress-fill" style="width:${pct.toFixed(1)}%"></div>
+             </div>
+             <span class="progress-pct">${Math.round(pct)}%</span>
            </div>`
         : '';
       return `
