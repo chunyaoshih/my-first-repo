@@ -747,7 +747,8 @@
           "created_at": "2026-04-09T02:14:31.401Z"
         }
       ],
-      "duration": 9552
+      "duration": 9552,
+      "completion_percent": 45.8
     }
   ],
   "_lastAddedCount": 2
